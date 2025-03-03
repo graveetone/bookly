@@ -1,14 +1,19 @@
+from datetime import timedelta
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel.ext.asyncio.session import AsyncSession
+from fastapi.responses import JSONResponse
 from starlette import status
 
-from src.auth.schemas import UserCreateModel, UserCreatedModel
+from src.auth.schemas import UserCreateModel, UserCreatedModel, UserLoginModel
 from src.auth.service import UserService
+from src.auth.utils import create_access_token, decode_access_token, verify_password
 from src.db.main import get_session
 
 auth_router = APIRouter(tags=["auth"])
 user_service = UserService()
 
+REFRESH_TOKEN_EXPIRY = timedelta(days=2)
 
 @auth_router.post("/signup", status_code=status.HTTP_201_CREATED, response_model=UserCreatedModel)
 async def create_user_account(user_data: UserCreateModel, session: AsyncSession = Depends(get_session)):
@@ -24,3 +29,45 @@ async def create_user_account(user_data: UserCreateModel, session: AsyncSession 
     )
 
     return user
+
+
+@auth_router.post("/login", status_code=status.HTTP_200_OK)
+async def login(user_data: UserLoginModel, session: AsyncSession = Depends(get_session)):
+    email = user_data.email
+    password = user_data.password
+
+    user = await user_service.get_user_by_email(email, session=session)
+
+    if user is None or not verify_password(password, user.password_hash):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid credentials"
+        )
+
+    access_token = create_access_token(
+        user_data={
+            "email": email,
+            "user_uid": str(user.uid),
+        }
+    )
+    refresh_token = create_access_token(
+        user_data={
+            "email": email,
+            "user_uid": str(user.uid),
+        },
+        refresh=True,
+        expiry=REFRESH_TOKEN_EXPIRY
+    )
+
+    return JSONResponse(content={
+        "message": "Logged in successfully",
+        "access_token": access_token,
+        "refresh_token": refresh_token,
+        "user": {
+            "email": email,
+            "uid": str(user.uid)
+        }
+    })
+
+
+

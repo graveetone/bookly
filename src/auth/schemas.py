@@ -24,3 +24,6 @@ class UserCreatedModel(BaseModel):
     updated_at: datetime
 
 
+class UserLoginModel(BaseModel):
+    email: str
+    password: str
