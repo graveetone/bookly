@@ -6,16 +6,18 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from fastapi.responses import JSONResponse
 from starlette import status
 
-from src.auth.dependencies import RefreshTokenBearer
+from src.auth.dependencies import RefreshTokenBearer, AccessTokenBearer
 from src.auth.schemas import UserCreateModel, UserCreatedModel, UserLoginModel
 from src.auth.service import UserService
 from src.auth.utils import create_access_token, decode_access_token, verify_password
 from src.db.main import get_session
+from src.db.redis import add_jti_to_blocklist
 
 auth_router = APIRouter(tags=["auth"])
 user_service = UserService()
 
 REFRESH_TOKEN_EXPIRY = timedelta(days=2)
+access_token_bearer = AccessTokenBearer()
 refresh_token_bearer = RefreshTokenBearer()
 
 
@@ -85,4 +87,12 @@ async def get_new_access_token(token_details: dict = Depends(refresh_token_beare
     )
     return JSONResponse(content={
         "access_token": new_access_token
+    })
+
+
+@auth_router.delete("/logout")
+async def logout(token_details: dict = Depends(access_token_bearer)):
+    await add_jti_to_blocklist(token_details["jti"])
+    return JSONResponse({
+        "message": "Token was revoked",
     })
