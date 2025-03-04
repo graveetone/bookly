@@ -1,3 +1,4 @@
+import datetime
 from datetime import timedelta
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -5,6 +6,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from fastapi.responses import JSONResponse
 from starlette import status
 
+from src.auth.dependencies import RefreshTokenBearer
 from src.auth.schemas import UserCreateModel, UserCreatedModel, UserLoginModel
 from src.auth.service import UserService
 from src.auth.utils import create_access_token, decode_access_token, verify_password
@@ -14,6 +16,8 @@ auth_router = APIRouter(tags=["auth"])
 user_service = UserService()
 
 REFRESH_TOKEN_EXPIRY = timedelta(days=2)
+refresh_token_bearer = RefreshTokenBearer()
+
 
 @auth_router.post("/signup", status_code=status.HTTP_201_CREATED, response_model=UserCreatedModel)
 async def create_user_account(user_data: UserCreateModel, session: AsyncSession = Depends(get_session)):
@@ -70,4 +74,15 @@ async def login(user_data: UserLoginModel, session: AsyncSession = Depends(get_s
     })
 
 
+@auth_router.get("/refresh_token")
+async def get_new_access_token(token_details: dict = Depends(refresh_token_bearer)):
+    expiry_timestamp = token_details.get("exp")
+    if datetime.datetime.fromtimestamp(expiry_timestamp) <= datetime.datetime.now():
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid or expired token")
 
+    new_access_token = create_access_token(
+        user_data = token_details["user"]
+    )
+    return JSONResponse(content={
+        "access_token": new_access_token
+    })
