@@ -6,7 +6,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from fastapi.responses import JSONResponse
 from starlette import status
 
-from src.auth.dependencies import RefreshTokenBearer, AccessTokenBearer
+from src.auth.dependencies import RefreshTokenBearer, AccessTokenBearer, get_current_user, RoleChecker
 from src.auth.schemas import UserCreateModel, UserCreatedModel, UserLoginModel
 from src.auth.service import UserService
 from src.auth.utils import create_access_token, decode_access_token, verify_password
@@ -19,6 +19,7 @@ user_service = UserService()
 REFRESH_TOKEN_EXPIRY = timedelta(days=2)
 access_token_bearer = AccessTokenBearer()
 refresh_token_bearer = RefreshTokenBearer()
+admin_role_checker = RoleChecker(allowed_roles=["ADMIN"])
 
 
 @auth_router.post("/signup", status_code=status.HTTP_201_CREATED, response_model=UserCreatedModel)
@@ -71,7 +72,8 @@ async def login(user_data: UserLoginModel, session: AsyncSession = Depends(get_s
         "refresh_token": refresh_token,
         "user": {
             "email": email,
-            "uid": str(user.uid)
+            "uid": str(user.uid),
+            "role": user.role
         }
     })
 
@@ -96,3 +98,8 @@ async def logout(token_details: dict = Depends(access_token_bearer)):
     return JSONResponse({
         "message": "Token was revoked",
     })
+
+
+@auth_router.get("/me")
+async def get_current_user(current_user = Depends(get_current_user), _=Depends(admin_role_checker)):
+    return current_user
