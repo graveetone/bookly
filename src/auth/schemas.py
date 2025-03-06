@@ -5,6 +5,7 @@ from typing import List
 from pydantic import BaseModel, Field
 
 from src.books.schemas import Book
+from src.reviews.schemas import ReviewModel
 
 
 class UserCreateModel(BaseModel):
@@ -25,8 +26,11 @@ class UserCreatedModel(BaseModel):
     password_hash: str = Field(exclude=True)
     created_at: datetime
     updated_at: datetime
-    books: List[Book]
 
+
+class UserBooksModel(UserCreatedModel):
+    books: List[Book]
+    reviews: List[ReviewModel]
 
 class UserLoginModel(BaseModel):
     email: str

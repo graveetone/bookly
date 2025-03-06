@@ -7,7 +7,7 @@ from fastapi.responses import JSONResponse
 from starlette import status
 
 from src.auth.dependencies import RefreshTokenBearer, AccessTokenBearer, get_current_user, RoleChecker
-from src.auth.schemas import UserCreateModel, UserCreatedModel, UserLoginModel
+from src.auth.schemas import UserCreateModel, UserCreatedModel, UserLoginModel, UserBooksModel
 from src.auth.service import UserService
 from src.auth.utils import create_access_token, decode_access_token, verify_password
 from src.db.main import get_session
@@ -100,6 +100,6 @@ async def logout(token_details: dict = Depends(access_token_bearer)):
     })
 
 
-@auth_router.get("/me", response_model=UserCreatedModel)
+@auth_router.get("/me", response_model=UserBooksModel)
 async def get_current_user(current_user = Depends(get_current_user), _=Depends(admin_role_checker)):
     return current_user

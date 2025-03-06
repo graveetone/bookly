@@ -5,7 +5,6 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from src.config import Config
 
-from src.books.models import Book
 
 
 engine = AsyncEngine(

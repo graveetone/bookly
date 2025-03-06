@@ -5,7 +5,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from starlette import status
 
 from src.auth.dependencies import AccessTokenBearer, RoleChecker
-from src.books.schemas import Book, BookUpdateModel, BookCreateModel
+from src.books.schemas import Book, BookUpdateModel, BookCreateModel, BookDetailsModel
 from src.books.service import BookService
 from src.db.main import get_session
 
@@ -31,12 +31,11 @@ async def create_book(book: BookCreateModel, session: AsyncSession = Depends(get
     return await book_service.create_book(book, user_uid, session)
 
 
-@book_router.get("/{book_uid}", response_model=Book)
+@book_router.get("/{book_uid}", response_model=BookDetailsModel)
 async def get_book(book_uid: str, session: AsyncSession = Depends(get_session), token_details: dict = Depends(access_token_bearer)) -> Optional[Book]:
     book = await book_service.get_book(book_uid, session)
     if book:
         return book
-
     raise HTTPException(
         status_code=status.HTTP_404_NOT_FOUND,
         detail=f"Book with id '{book_uid}' not found"
