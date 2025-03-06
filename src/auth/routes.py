@@ -100,6 +100,6 @@ async def logout(token_details: dict = Depends(access_token_bearer)):
     })
 
 
-@auth_router.get("/me")
+@auth_router.get("/me", response_model=UserCreatedModel)
 async def get_current_user(current_user = Depends(get_current_user), _=Depends(admin_role_checker)):
     return current_user

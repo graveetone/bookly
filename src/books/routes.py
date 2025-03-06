@@ -20,17 +20,19 @@ book_service = BookService()
 access_token_bearer = AccessTokenBearer()
 
 @book_router.get("/", response_model=List[Book])
-async def get_all_books(session: AsyncSession = Depends(get_session), user_details: AccessTokenBearer = Depends(access_token_bearer)) -> list:
+async def get_all_books(session: AsyncSession = Depends(get_session), token_details: dict = Depends(access_token_bearer)) -> list:
     return await book_service.get_all_books(session)
 
 
 @book_router.post("/", response_model=Book, status_code=status.HTTP_201_CREATED)
-async def create_book(book: BookCreateModel, session: AsyncSession = Depends(get_session), user_details: AccessTokenBearer = Depends(access_token_bearer)) -> Book:
-    return await book_service.create_book(book, session)
+async def create_book(book: BookCreateModel, session: AsyncSession = Depends(get_session), token_details: dict = Depends(access_token_bearer)) -> Book:
+    user_uid = token_details.get("user")["user_uid"]
+
+    return await book_service.create_book(book, user_uid, session)
 
 
 @book_router.get("/{book_uid}", response_model=Book)
-async def get_book(book_uid: str, session: AsyncSession = Depends(get_session), user_details: AccessTokenBearer = Depends(access_token_bearer)) -> Optional[Book]:
+async def get_book(book_uid: str, session: AsyncSession = Depends(get_session), token_details: dict = Depends(access_token_bearer)) -> Optional[Book]:
     book = await book_service.get_book(book_uid, session)
     if book:
         return book
@@ -56,3 +58,8 @@ async def update_book(book_uid: str, data: BookUpdateModel, session: AsyncSessio
 @book_router.delete("/{book_uid}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_book(book_uid: str, session: AsyncSession = Depends(get_session), user_details: AccessTokenBearer = Depends(access_token_bearer)):
     await book_service.delete_book(book_uid, session)
+
+
+@book_router.get("/users/{user_uid}", response_model=List[Book])
+async def get_all_user_books(user_uid: str, session: AsyncSession = Depends(get_session), token_details: dict = Depends(access_token_bearer)) -> list:
+    return await book_service.get_all_user_books(user_uid, session)
