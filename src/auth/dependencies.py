@@ -6,6 +6,8 @@ from src.auth.service import UserService
 from src.auth.utils import decode_access_token
 from src.db.main import get_session
 from src.db.redis import jti_in_blocklist
+from src.errors import InvalidTokenException, RevokedTokenException, AccessTokenRequiredException, \
+    RefreshTokenRequiredException, InsufficientPermissionsException
 
 
 class TokenBearer(HTTPBearer):
@@ -17,21 +19,9 @@ class TokenBearer(HTTPBearer):
 
         token_data = decode_access_token(creds.credentials)
         if token_data is None:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail={
-                    "error": "The token is invalid or expired",
-                    "resolution": "Please get new token",
-                }
-            )
+            raise InvalidTokenException()
         if await jti_in_blocklist(jti=token_data["jti"]):
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail={
-                    "error": "The token is invalid or revoked",
-                    "resolution": "Please get new token",
-                }
-            )
+            raise RevokedTokenException()
         self.verify_token_data(token_data=token_data)
 
         return token_data
@@ -43,19 +33,13 @@ class TokenBearer(HTTPBearer):
 class AccessTokenBearer(TokenBearer):
     def verify_token_data(self, token_data: dict):
         if token_data and token_data.get("refresh"):
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Please provide the access token"
-            )
+            raise AccessTokenRequiredException()
 
 
 class RefreshTokenBearer(TokenBearer):
     def verify_token_data(self, token_data: dict):
         if token_data and token_data.get("refresh") is None:
-            raise HTTPException(
-                status_code=status.HTTP_403_UNAUTHORIZED,
-                detail="Please provide the refresh token"
-            )
+            raise RefreshTokenRequiredException()
 
 
 async def get_current_user(
@@ -72,7 +56,4 @@ class RoleChecker:
 
     async def __call__(self, current_user = Depends(get_current_user)):
         if current_user.role not in self.allowed_roles:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="You are not allowed to perform this action"
-            )
+            raise InsufficientPermissionsException()

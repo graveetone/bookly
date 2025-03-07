@@ -12,6 +12,7 @@ from src.auth.service import UserService
 from src.auth.utils import create_access_token, decode_access_token, verify_password
 from src.db.main import get_session
 from src.db.redis import add_jti_to_blocklist
+from src.errors import UserAlreadyExistsException, InvalidCredentialsException, InvalidTokenException
 
 auth_router = APIRouter(tags=["auth"])
 user_service = UserService()
@@ -28,7 +29,7 @@ async def create_user_account(user_data: UserCreateModel, session: AsyncSession 
     user_exists = await user_service.user_exists(email=email, session=session)
 
     if user_exists:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"User with email {email} already exists")
+        raise UserAlreadyExistsException()
 
     user = await user_service.create_user(
         user_data=user_data,
@@ -46,10 +47,7 @@ async def login(user_data: UserLoginModel, session: AsyncSession = Depends(get_s
     user = await user_service.get_user_by_email(email, session=session)
 
     if user is None or not verify_password(password, user.password_hash):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid credentials"
-        )
+        raise InvalidCredentialsException()
 
     access_token = create_access_token(
         user_data={
@@ -82,7 +80,7 @@ async def login(user_data: UserLoginModel, session: AsyncSession = Depends(get_s
 async def get_new_access_token(token_details: dict = Depends(refresh_token_bearer)):
     expiry_timestamp = token_details.get("exp")
     if datetime.datetime.fromtimestamp(expiry_timestamp) <= datetime.datetime.now():
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid or expired token")
+        raise InvalidTokenException()
 
     new_access_token = create_access_token(
         user_data = token_details["user"]

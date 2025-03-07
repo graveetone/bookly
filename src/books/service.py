@@ -3,7 +3,7 @@ import datetime
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from src.books.models import Book
+from src.db.models import Book
 from src.books.schemas import BookCreateModel, BookUpdateModel
 
 

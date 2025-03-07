@@ -8,7 +8,7 @@ from src.auth.dependencies import AccessTokenBearer, RoleChecker
 from src.books.schemas import Book, BookUpdateModel, BookCreateModel, BookDetailsModel
 from src.books.service import BookService
 from src.db.main import get_session
-
+from src.errors import BookNotFoundException
 
 book_router = APIRouter(
     tags=["books"],
@@ -36,20 +36,14 @@ async def get_book(book_uid: str, session: AsyncSession = Depends(get_session), 
     book = await book_service.get_book(book_uid, session)
     if book:
         return book
-    raise HTTPException(
-        status_code=status.HTTP_404_NOT_FOUND,
-        detail=f"Book with id '{book_uid}' not found"
-    )
+    raise BookNotFoundException()
 
 
 @book_router.patch("/{book_uid}", response_model=Book)
 async def update_book(book_uid: str, data: BookUpdateModel, session: AsyncSession = Depends(get_session), user_details: AccessTokenBearer = Depends(access_token_bearer)) -> Book:
     book = await book_service.update_book(book_uid, data, session)
     if not book:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Book with id '{book_uid}' not found"
-        )
+        raise BookNotFoundException()
 
     return book
 
