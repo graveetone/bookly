@@ -7,6 +7,7 @@ from src.books.routes import book_router
 from contextlib import asynccontextmanager
 
 from src.db.main import init_db
+from src.middleware import register_middleware
 from src.reviews.routes import reviews_router
 from src.errors import EXCEPTIONS_MAP, create_exception_handler
 
@@ -42,6 +43,7 @@ for exception, info in EXCEPTIONS_MAP.items():
         )
     )
 
+register_middleware(app)
 
 @app.exception_handler(500)
 async def internal_server_error_handler(request: Request, exception: Exception) -> JSONResponse:

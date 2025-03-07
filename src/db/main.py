@@ -10,7 +10,6 @@ from src.config import Config
 engine = AsyncEngine(
     create_engine(
         url=Config.DATABASE_URL,
-        echo=True
     )
 )
 
