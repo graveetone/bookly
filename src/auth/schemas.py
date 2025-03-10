@@ -32,6 +32,11 @@ class UserBooksModel(UserCreatedModel):
     books: List[Book]
     reviews: List[ReviewModel]
 
+
 class UserLoginModel(BaseModel):
     email: str
     password: str
+
+
+class EmailModel(BaseModel):
+    addresses: List[str]

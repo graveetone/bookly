@@ -7,12 +7,16 @@ from fastapi.responses import JSONResponse
 from starlette import status
 
 from src.auth.dependencies import RefreshTokenBearer, AccessTokenBearer, get_current_user, RoleChecker
-from src.auth.schemas import UserCreateModel, UserCreatedModel, UserLoginModel, UserBooksModel
+from src.auth.schemas import UserCreateModel, UserCreatedModel, UserLoginModel, UserBooksModel, EmailModel
 from src.auth.service import UserService
-from src.auth.utils import create_access_token, decode_access_token, verify_password
+from src.auth.utils import create_access_token, decode_access_token, verify_password, create_url_safe_token, \
+    decode_url_safe_token
+from src.config import Config
 from src.db.main import get_session
 from src.db.redis import add_jti_to_blocklist
-from src.errors import UserAlreadyExistsException, InvalidCredentialsException, InvalidTokenException
+from src.errors import UserAlreadyExistsException, InvalidCredentialsException, InvalidTokenException, \
+    UserNotFoundException
+from src.mail import create_message, mail
 
 auth_router = APIRouter(tags=["auth"])
 user_service = UserService()
@@ -23,7 +27,7 @@ refresh_token_bearer = RefreshTokenBearer()
 admin_role_checker = RoleChecker(allowed_roles=["ADMIN"])
 
 
-@auth_router.post("/signup", status_code=status.HTTP_201_CREATED, response_model=UserCreatedModel)
+@auth_router.post("/signup", status_code=status.HTTP_201_CREATED)
 async def create_user_account(user_data: UserCreateModel, session: AsyncSession = Depends(get_session)):
     email = user_data.email
     user_exists = await user_service.user_exists(email=email, session=session)
@@ -36,7 +40,45 @@ async def create_user_account(user_data: UserCreateModel, session: AsyncSession 
         session=session
     )
 
-    return user
+    token = create_url_safe_token({"email": email})
+    link = f"http://{Config.DOMAIN}/api/v1/auth/verify/{token}"
+
+    html = f"""
+    <h1>Verify your email, {user.first_name}</h1>
+    <p>Please click this <a href="{link}">link</a> to verify your email</p>
+    """
+
+    await mail.send_message(
+        message=create_message(
+            recipients=[email],
+            subject="Verify your account",
+            body=html,
+        )
+    )
+
+    return {
+        "message": "Account created! Check email to verify",
+        "user": user
+    }
+
+
+@auth_router.get("/verify/{token}", status_code=status.HTTP_200_OK)
+async def verify_user_account(token: str, session: AsyncSession = Depends(get_session)):
+    email = decode_url_safe_token(token).get("email")
+    if not email:
+        return JSONResponse(content={
+            "message": "Error occurred during verification"
+        }, status_code=500)
+
+    user = await user_service.get_user_by_email(email, session=session)
+    if not user:
+        raise UserNotFoundException
+
+    await user_service.update_user(user, {"is_verified": True}, session=session)
+
+    return JSONResponse(content={
+        "message": "Account verified successfully",
+    }, status_code=200)
 
 
 @auth_router.post("/login", status_code=status.HTTP_200_OK)
@@ -101,3 +143,18 @@ async def logout(token_details: dict = Depends(access_token_bearer)):
 @auth_router.get("/me", response_model=UserBooksModel)
 async def get_current_user(current_user = Depends(get_current_user), _=Depends(admin_role_checker)):
     return current_user
+
+
+@auth_router.post("/send_mail")
+async def send_mail(emails: EmailModel):
+    message = create_message(
+        recipients=emails.addresses,
+        subject="Welcome to Bookly",
+        body="<h1>Welcome to the Bookly app</h1>",
+    )
+
+    await mail.send_message(message=message)
+
+    return {
+        "message": "Email sent successfully!"
+    }

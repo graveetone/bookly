@@ -39,6 +39,8 @@ class BookNotFoundException(BooklyException):
 class InvalidCredentialsException(BooklyException):
     ...
 
+class UserNotFoundException(BooklyException):
+    ...
 
 def create_exception_handler(status_code: int, detail: Any) -> Callable[[Request, Exception], JSONResponse]:
     async def exception_handler(request: Request, exception: BooklyException) -> JSONResponse:
@@ -107,4 +109,11 @@ EXCEPTIONS_MAP = {
             "error_code": "invalid_credentials"
         }
     ),
+    UserNotFoundException: dict(
+        status_code=404,
+        detail={
+            "message": "User not found",
+            "error_code": "user_not_found",
+        }
+    )
 }

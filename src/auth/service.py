@@ -31,3 +31,11 @@ class UserService:
         user = await self.get_user_by_email(email=email, session=session)
 
         return user is not None
+
+    async def update_user(self, user: User, user_data: dict, session: AsyncSession):
+        for k, v in user_data.items():
+            setattr(user, k, v)
+
+        await session.commit()
+
+        return user
