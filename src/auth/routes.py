@@ -1,7 +1,7 @@
 import datetime
 from datetime import timedelta
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
 from sqlmodel.ext.asyncio.session import AsyncSession
 from fastapi.responses import JSONResponse
 from starlette import status
@@ -12,12 +12,13 @@ from src.auth.schemas import UserCreateModel, UserCreatedModel, UserLoginModel, 
 from src.auth.service import UserService
 from src.auth.utils import create_access_token, decode_access_token, verify_password, create_url_safe_token, \
     decode_url_safe_token
+from src.celery_tasks import send_email
 from src.config import Config
 from src.db.main import get_session
 from src.db.redis import add_jti_to_blocklist
 from src.errors import UserAlreadyExistsException, InvalidCredentialsException, InvalidTokenException, \
     UserNotFoundException, PasswordNotMatchException
-from src.mail import create_message, mail
+
 
 auth_router = APIRouter(tags=["auth"])
 user_service = UserService()
@@ -29,7 +30,11 @@ admin_role_checker = RoleChecker(allowed_roles=["ADMIN"])
 
 
 @auth_router.post("/signup", status_code=status.HTTP_201_CREATED)
-async def create_user_account(user_data: UserCreateModel, session: AsyncSession = Depends(get_session)):
+async def create_user_account(
+        user_data: UserCreateModel,
+        bg_tasks: BackgroundTasks,
+        session: AsyncSession = Depends(get_session),
+):
     email = user_data.email
     user_exists = await user_service.user_exists(email=email, session=session)
 
@@ -49,12 +54,10 @@ async def create_user_account(user_data: UserCreateModel, session: AsyncSession 
     <p>Please click this <a href="{link}">link</a> to verify your email</p>
     """
 
-    await mail.send_message(
-        message=create_message(
-            recipients=[email],
-            subject="Verify your account",
-            body=html,
-        )
+    send_email.delay(
+        recipients=[email],
+        subject="Verify your account",
+        body=html,
     )
 
     return {
@@ -148,13 +151,11 @@ async def get_current_user(current_user = Depends(get_current_user), _=Depends(a
 
 @auth_router.post("/send_mail")
 async def send_mail(emails: EmailModel):
-    message = create_message(
+    send_email.delay(
         recipients=emails.addresses,
         subject="Welcome to Bookly",
         body="<h1>Welcome to the Bookly app</h1>",
     )
-
-    await mail.send_message(message=message)
 
     return {
         "message": "Email sent successfully!"
@@ -167,13 +168,11 @@ async def password_reset(email_data: PasswordResetRequestModel, session: AsyncSe
     token = create_url_safe_token({"email": email_data.email})
     link = f"http://{Config.DOMAIN}/api/v1/auth/confirm-reset-password/{token}"
 
-    message = create_message(
+    send_email.delay(
         recipients=[email_data.email],
         subject="Reset your password",
         body=f"<h1>Click this <a href='{link}'>link</a> to reset your password</h1>",
     )
-
-    await mail.send_message(message=message)
 
     return JSONResponse(content={
         "message": "Please check your email for instruction to reset your password!"
