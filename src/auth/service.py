@@ -34,6 +34,9 @@ class UserService:
 
     async def update_user(self, user: User, user_data: dict, session: AsyncSession):
         for k, v in user_data.items():
+            if k == "password":
+                k = "password_hash"
+                v = generate_password_hash(v)
             setattr(user, k, v)
 
         await session.commit()

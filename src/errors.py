@@ -42,6 +42,13 @@ class InvalidCredentialsException(BooklyException):
 class UserNotFoundException(BooklyException):
     ...
 
+class AccountNotVerifiedException(BooklyException):
+    ...
+
+
+class PasswordNotMatchException(BooklyException):
+    ...
+
 def create_exception_handler(status_code: int, detail: Any) -> Callable[[Request, Exception], JSONResponse]:
     async def exception_handler(request: Request, exception: BooklyException) -> JSONResponse:
         return JSONResponse(
@@ -114,6 +121,22 @@ EXCEPTIONS_MAP = {
         detail={
             "message": "User not found",
             "error_code": "user_not_found",
+        }
+    ),
+    AccountNotVerifiedException: dict(
+        status_code=403,
+        detail={
+            "message": "Account not yet verified",
+            "error_code": "account_not_verified",
+            "resolution": "Please check your email for verification details"
+        }
+    ),
+    PasswordNotMatchException: dict(
+        status_code=400,
+        detail={
+            "message": "Passwords do not match",
+            "error_code": "password_not_match",
+            "resolution": "Please check your password and confirmation password are the same"
         }
     )
 }

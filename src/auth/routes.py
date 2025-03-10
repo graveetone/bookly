@@ -7,7 +7,8 @@ from fastapi.responses import JSONResponse
 from starlette import status
 
 from src.auth.dependencies import RefreshTokenBearer, AccessTokenBearer, get_current_user, RoleChecker
-from src.auth.schemas import UserCreateModel, UserCreatedModel, UserLoginModel, UserBooksModel, EmailModel
+from src.auth.schemas import UserCreateModel, UserCreatedModel, UserLoginModel, UserBooksModel, EmailModel, \
+    PasswordResetRequestModel, PasswordResetConfirmModel
 from src.auth.service import UserService
 from src.auth.utils import create_access_token, decode_access_token, verify_password, create_url_safe_token, \
     decode_url_safe_token
@@ -15,7 +16,7 @@ from src.config import Config
 from src.db.main import get_session
 from src.db.redis import add_jti_to_blocklist
 from src.errors import UserAlreadyExistsException, InvalidCredentialsException, InvalidTokenException, \
-    UserNotFoundException
+    UserNotFoundException, PasswordNotMatchException
 from src.mail import create_message, mail
 
 auth_router = APIRouter(tags=["auth"])
@@ -158,3 +159,44 @@ async def send_mail(emails: EmailModel):
     return {
         "message": "Email sent successfully!"
     }
+
+
+@auth_router.post("/password-reset")
+async def password_reset(email_data: PasswordResetRequestModel, session: AsyncSession = Depends(get_session)):
+
+    token = create_url_safe_token({"email": email_data.email})
+    link = f"http://{Config.DOMAIN}/api/v1/auth/confirm-reset-password/{token}"
+
+    message = create_message(
+        recipients=[email_data.email],
+        subject="Reset your password",
+        body=f"<h1>Click this <a href='{link}'>link</a> to reset your password</h1>",
+    )
+
+    await mail.send_message(message=message)
+
+    return JSONResponse(content={
+        "message": "Please check your email for instruction to reset your password!"
+    }, status_code=200)
+
+
+@auth_router.post("/confirm-reset-password/{token}", status_code=status.HTTP_200_OK)
+async def reset_account_password(token: str, password_reset_data: PasswordResetConfirmModel, session: AsyncSession = Depends(get_session)):
+    if password_reset_data.new_password != password_reset_data.confirm_password:
+        raise PasswordNotMatchException
+
+    email = decode_url_safe_token(token).get("email")
+    if not email:
+        return JSONResponse(content={
+            "message": "Error occurred during verification"
+        }, status_code=500)
+
+    user = await user_service.get_user_by_email(email, session=session)
+    if not user:
+        raise UserNotFoundException
+
+    await user_service.update_user(user, {"password": password_reset_data.new_password}, session=session)
+
+    return JSONResponse(content={
+        "message": "Password was reset!",
+    }, status_code=200)

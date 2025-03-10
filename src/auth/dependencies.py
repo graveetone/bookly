@@ -7,7 +7,7 @@ from src.auth.utils import decode_access_token
 from src.db.main import get_session
 from src.db.redis import jti_in_blocklist
 from src.errors import InvalidTokenException, RevokedTokenException, AccessTokenRequiredException, \
-    RefreshTokenRequiredException, InsufficientPermissionsException
+    RefreshTokenRequiredException, InsufficientPermissionsException, AccountNotVerifiedException
 
 
 class TokenBearer(HTTPBearer):
@@ -55,5 +55,8 @@ class RoleChecker:
         self.allowed_roles = allowed_roles
 
     async def __call__(self, current_user = Depends(get_current_user)):
+        if not current_user.is_verified:
+            raise AccountNotVerifiedException
+
         if current_user.role not in self.allowed_roles:
             raise InsufficientPermissionsException()
