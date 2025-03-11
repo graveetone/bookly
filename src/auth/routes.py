@@ -54,7 +54,7 @@ async def create_user_account(
     <p>Please click this <a href="{link}">link</a> to verify your email</p>
     """
 
-    send_email.delay(
+    bg_tasks.add_task(send_email,
         recipients=[email],
         subject="Verify your account",
         body=html,
