@@ -21,7 +21,6 @@ class ReviewService:
 
             review = Review(**review_data)
 
-            breakpoint()
             if not book:
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
